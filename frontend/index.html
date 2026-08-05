@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小说阅读器</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <input type="file" id="fileInput" accept=".txt" style="display:none" />
+
+  <!-- 工具栏 -->
+  <div id="toolbar">
+    <button id="btnBookshelf" class="collapsible">📚 书架</button>
+    <button id="btnBack" style="display:none">↩ 返回</button>
+    <span id="bookTitle" style="visibility:hidden"></span>
+    <button id="btnChapters">☰ 目录</button>
+    <span id="toolbarSpacer"></span>
+    <button id="btnSettings" title="设置">⚙ 设置</button>
+    <button id="btnLineDown" class="collapsible" title="缩小行距">↕-</button>
+    <div id="lineHeightDropdown" class="tbDropdown collapsible">
+      <span class="tbValue">2.0</span>
+      <ul class="tbMenu">
+        <li data-value="1.4">1.4</li><li data-value="1.6">1.6</li><li data-value="1.8">1.8</li>
+        <li data-value="2.0" class="active">2.0</li><li data-value="2.2">2.2</li>
+        <li data-value="2.4">2.4</li><li data-value="2.6">2.6</li><li data-value="2.8">2.8</li>
+        <li data-value="3.0">3.0</li><li data-value="3.2">3.2</li><li data-value="3.4">3.4</li>
+        <li data-value="3.6">3.6</li><li data-value="3.8">3.8</li><li data-value="4.0">4.0</li>
+      </ul>
+    </div>
+    <button id="btnLineUp" class="collapsible" title="放大行距">↕+</button>
+    <button id="btnFontDown" class="collapsible" title="缩小字体">A-</button>
+    <div id="fontSizeDropdown" class="tbDropdown collapsible">
+      <span class="tbValue">17</span>
+      <ul class="tbMenu">
+        <li data-value="12">12</li><li data-value="14">14</li><li data-value="16">16</li>
+        <li data-value="17" class="active">17</li><li data-value="18">18</li>
+        <li data-value="20">20</li><li data-value="22">22</li><li data-value="24">24</li>
+        <li data-value="26">26</li><li data-value="28">28</li>
+      </ul>
+    </div>
+    <button id="btnFontUp" class="collapsible" title="放大字体">A+</button>
+    <button id="btnTheme" class="collapsible">🌙 夜间模式</button>
+    <!-- 窄屏设置下拉面板 -->
+    <div id="settingsPanel" style="display:none">
+      <div class="settingsItem" id="settingsBookshelf">📚 书架</div>
+      <div class="settingsCtrl">
+        <button id="settingsLineDown">↕-</button>
+        <div class="settingsVal" id="settingsLineVal">2.0</div>
+        <button id="settingsLineUp">↕+</button>
+        <ul class="settingsMenu" id="settingsLineMenu">
+          <li data-value="1.4">1.4</li><li data-value="1.6">1.6</li><li data-value="1.8">1.8</li>
+          <li data-value="2.0" class="active">2.0</li><li data-value="2.2">2.2</li>
+          <li data-value="2.4">2.4</li><li data-value="2.6">2.6</li><li data-value="2.8">2.8</li>
+          <li data-value="3.0">3.0</li><li data-value="3.2">3.2</li><li data-value="3.4">3.4</li>
+          <li data-value="3.6">3.6</li><li data-value="3.8">3.8</li><li data-value="4.0">4.0</li>
+        </ul>
+      </div>
+      <div class="settingsCtrl">
+        <button id="settingsFontDown">A-</button>
+        <div class="settingsVal" id="settingsFontVal">17</div>
+        <button id="settingsFontUp">A+</button>
+        <ul class="settingsMenu" id="settingsFontMenu">
+          <li data-value="12">12</li><li data-value="14">14</li><li data-value="16">16</li>
+          <li data-value="17" class="active">17</li><li data-value="18">18</li>
+          <li data-value="20">20</li><li data-value="22">22</li><li data-value="24">24</li>
+          <li data-value="26">26</li><li data-value="28">28</li>
+        </ul>
+      </div>
+      <div class="settingsItem" id="settingsTheme">🌙 夜间模式</div>
+    </div>
+  </div>
+
+  <!-- 内容区（独立滚动，滚动条从工具栏下方开始） -->
+  <div id="contentWrapper">
+  <div id="contentArea">
+  <!-- 书架视图 -->
+  <div id="bookshelf" style="display:none">
+    <div id="bookshelfHeader">
+      <h2>我的书架</h2>
+      <button id="btnOpen">＋ 导入</button>
+    </div>
+    <div id="bookList"></div>
+  </div>
+
+  <!-- 阅读区域 -->
+  <div id="reader" style="display:none">
+    <p id="placeholder">点击「导入」选择一本 TXT 小说</p>
+    <h2 id="chapterTitle"></h2>
+    <div id="chapterNavTop">
+      <button id="btnPrevTop">上一章</button>
+      <span id="chapterIndicatorTop"></span>
+      <button id="btnNextTop">下一章</button>
+    </div>
+    <div id="chapterContent"></div>
+    <div id="chapterNavBottom">
+      <button id="btnPrev">上一章</button>
+      <span id="chapterIndicator"></span>
+      <button id="btnNext">下一章</button>
+    </div>
+  </div>
+
+    </div>
+    <div id="customScrollbar" class="customScrollbar"><div id="customScrollThumb" class="customScrollThumb"></div></div>
+  </div>
+  <!-- 目录侧边栏 -->
+  <div id="tocOverlay" style="display:none"></div>
+  <div id="tocPanel" style="display:none">
+    <div id="tocHeader">
+      <h3>目录</h3>
+      <button id="tocClose">↩ 返回</button>
+    </div>
+    <div id="tocScrollOuter">
+      <div id="tocScrollArea">
+        <ul id="tocList"></ul>
+      </div>
+      <div id="tocScrollbar" class="customScrollbar"><div id="tocScrollThumb" class="customScrollThumb"></div></div>
+    </div>
+  </div>
+
+  <!-- 自定义弹窗（alert / confirm 共用） -->
+  <div id="dialogOverlay" style="display:none"></div>
+  <div id="dialogBox" style="display:none">
+    <p id="dialogMsg"></p>
+    <div class="dialogBtns">
+      <button id="dialogOk">确认</button>
+      <button id="dialogCancel">取消</button>
+    </div>
+  </div>
+
+  <script src="tauri-bridge.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

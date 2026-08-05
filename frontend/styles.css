@@ -1,0 +1,779 @@
+/* ===== CSS 变量：日间 / 夜间主题 ===== */
+:root {
+  --bg: #f5f0e8;
+  --text: #333;
+  --toolbar-bg: #fff;
+  --toolbar-border: #ddd;
+  --btn-bg: #eee;
+  --btn-text: #333;
+  --btn-hover: #ddd;
+  --reader-bg: #fffdf7;
+  --reader-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --muted: #999;
+}
+
+.night {
+  --bg: #1a1a1a;
+  --text: #bbb;
+  --toolbar-bg: #252525;
+  --toolbar-border: #333;
+  --btn-bg: #333;
+  --btn-text: #ccc;
+  --btn-hover: #444;
+  --reader-bg: #222;
+  --reader-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  --muted: #666;
+}
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--btn-text);
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--btn-text);
+}
+
+/* ===== 全局 ===== */
+html {
+  background: var(--bg);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* resize 期间禁用所有 transition，防止 WebView2 闪烁 */
+.disable-transitions,
+.disable-transitions * {
+  transition: none !important;
+}
+
+/* 内容区包裹书架+阅读区，独立滚动 */
+#contentWrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#contentArea {
+  position: absolute;
+  inset: 0;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+#contentArea::-webkit-scrollbar {
+  display: none;
+}
+
+.customScrollbar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 10;
+}
+
+.customScrollThumb {
+  position: absolute;
+  right: 0;
+  width: 6px;
+  border-radius: 4px;
+  background: var(--muted);
+  transition: background 0.3s;
+  min-height: 20px;
+  pointer-events: auto;
+}
+
+.customScrollbar:hover .customScrollThumb {
+  background: var(--btn-text);
+}
+
+/* ===== 工具栏 ===== */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: min(16px, 3vw);
+  padding: 13px max(20px, 3vw) 13px 20px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-border);
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+#toolbar button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+}
+
+#toolbar button:hover {
+  background: var(--btn-hover);
+}
+
+#btnLineDown, #btnLineUp, #btnFontDown, #btnFontUp {
+  width: 44px;
+  padding: 6px 0;
+  text-align: center;
+}
+
+/* ===== 自定义下拉框（字体大小 / 行间距 共用） ===== */
+.tbDropdown {
+  position: relative;
+  user-select: none;
+}
+
+.tbDropdown .tbValue {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--btn-text);
+  transition: color 0.2s;
+}
+
+.tbDropdown .tbValue:hover {
+  color: #4a90d9;
+}
+
+.tbDropdown .tbMenu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  background: var(--toolbar-bg);
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+  min-width: 64px;
+  overflow: hidden;
+}
+
+.tbDropdown .tbMenu.show {
+  display: block;
+}
+
+.tbDropdown .tbMenu li {
+  display: block;
+  width: 100%;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--btn-text);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+  box-sizing: border-box;
+}
+
+.tbDropdown .tbMenu li:hover {
+  background: var(--btn-hover);
+}
+
+.tbDropdown .tbMenu li.active {
+  color: #4a90d9;
+  font-weight: bold;
+}
+
+#bookTitle {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 300px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+#toolbar button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+#toolbarSpacer {
+  flex: 1;
+}
+
+/* ===== 设置按钮 ===== */
+#btnSettings {
+  display: none;
+}
+
+/* ===== 窄屏设置面板 ===== */
+#settingsPanel {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 30;
+  min-width: 170px;
+  padding: 0;
+}
+
+#settingsPanel .settingsItem:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+#settingsPanel .settingsItem:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.settingsItem {
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  font-size: 14px;
+  color: var(--btn-text);
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.settingsItem:hover {
+  background: var(--btn-hover);
+}
+
+/* 设置面板内控件行 */
+.settingsCtrl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 45px;
+  padding: 0 12px;
+  position: relative;
+}
+
+.settingsCtrl button {
+  width: 44px;
+  padding: 5px 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.settingsCtrl button:hover {
+  background: var(--btn-hover);
+}
+
+.settingsVal {
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--btn-text);
+  font-weight: bold;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.2s;
+}
+
+.settingsVal:hover {
+  color: #4a90d9;
+}
+
+.settingsCtrl .settingsMenu {
+  display: none;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 100%;
+  background: var(--toolbar-bg);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+  z-index: 32;
+  min-width: 64px;
+}
+
+.settingsCtrl .settingsMenu.show {
+  display: block;
+}
+
+.settingsCtrl .settingsMenu li {
+  padding: 5px 16px;
+  font-size: 13px;
+  color: var(--btn-text);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.settingsCtrl .settingsMenu li:hover {
+  background: var(--btn-hover);
+}
+
+.settingsCtrl .settingsMenu li.active {
+  color: #4a90d9;
+  font-weight: bold;
+}
+
+/* ===== 窄屏响应式（仅阅读模式） ===== */
+@media (max-width: 860px) {
+  #toolbar.reading {
+    position: relative;
+  }
+
+  #toolbar.reading #btnSettings {
+    display: inline-block;
+  }
+
+  #toolbar.reading .collapsible {
+    display: none !important;
+  }
+}
+
+/* ===== 阅读区 ===== */
+#reader {
+  padding: 40px min(60px, 6vw);
+  background: var(--reader-bg);
+  margin: 20px auto;
+  width: 100%;
+  max-width: 860px;
+  border-radius: 4px;
+  box-shadow: var(--reader-shadow);
+  line-height: 2;
+  font-size: 17px;
+  transition: background 0.3s;
+}
+
+#placeholder {
+  color: var(--muted);
+  text-align: center;
+  padding-top: 120px;
+}
+
+#reader.hidden-placeholder #placeholder {
+  display: none;
+}
+
+/* ===== 章节标题 ===== */
+#chapterTitle {
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: 10px;
+  padding-bottom: 0;
+  border-bottom: none;
+  transition: color 0.3s;
+}
+
+/* ===== 章节导航（顶部/底部共用） ===== */
+#chapterNavTop, #chapterNavBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#chapterNavTop {
+  margin-bottom: 24px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--toolbar-border);
+  transition: border-color 0.3s;
+}
+
+#chapterNavBottom {
+  margin-top: 24px;
+  padding-top: 10px;
+  border-top: 1px solid var(--toolbar-border);
+  transition: border-color 0.3s;
+  gap: 4px;
+}
+
+#chapterNavTop button, #chapterNavBottom button {
+  font-size: 14px;
+  border: none;
+  background: none;
+  color: var(--btn-text);
+  padding: 4px 0;
+  cursor: pointer;
+  transition: color 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#chapterNavTop button:hover, #chapterNavBottom button:hover {
+  color: #4a90d9;
+}
+
+#chapterNavTop button:disabled, #chapterNavBottom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#chapterNavTop button:disabled:hover, #chapterNavBottom button:disabled:hover {
+  color: var(--btn-text);
+}
+
+#chapterIndicatorTop, #chapterIndicator {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#chapterIndicatorTop, #chapterIndicator {
+  cursor: pointer;
+  transition: color 0.2s;
+  white-space: nowrap;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chapterIndicatorTop:hover, #chapterIndicator:hover {
+  color: #4a90d9;
+}
+
+/* ===== 章节内容 ===== */
+#chapterContent {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  min-height: 200px;
+}
+
+#chapterIndicator {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== 加载状态 ===== */
+#loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+}
+
+/* ===== 书架 ===== */
+#bookshelf {
+  max-width: 860px;
+  margin: 20px auto;
+  padding: 40px min(60px, 6vw);
+}
+
+#bookshelfHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+#bookshelfHeader h2 {
+  font-size: 20px;
+  margin: 0;
+  line-height: 1;
+}
+
+#bookshelfHeader button {
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--btn-text);
+  font-size: 15px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+#bookshelfHeader button:hover {
+  color: #4a90d9;
+}
+
+.bookItem {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 16px;
+  margin-bottom: 8px;
+  background: var(--reader-bg);
+  border-radius: 6px;
+  box-shadow: var(--reader-shadow);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bookItem:hover {
+  background: var(--btn-hover);
+}
+
+.bookItem .bookName {
+  flex: 1;
+  font-size: 15px;
+}
+
+.bookItem .bookRename,
+.bookItem .bookRenameOk,
+.bookItem .bookRenameCancel {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.bookItem .bookRename:hover { color: #4a90d9; background: rgba(74, 144, 217, 0.1); }
+.bookItem .bookRenameOk:hover { color: #4caf50; background: rgba(76, 175, 80, 0.1); }
+.bookItem .bookRenameCancel:hover { color: #e55; background: rgba(238, 85, 85, 0.1); }
+
+.bookRenameInput {
+  flex: 1;
+  max-width: 300px;
+  padding: 5px 8px;
+  border: 1px solid #4a90d9;
+  border-radius: 4px;
+  font-size: 15px;
+  background: var(--toolbar-bg);
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.bookItem.renaming:hover {
+  background: var(--reader-bg);
+  cursor: default;
+}
+
+.bookItem .bookDelete {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bookItem .bookDelete:hover {
+  color: #e55;
+  background: rgba(238, 85, 85, 0.1);
+}
+
+.bookEmpty {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--muted);
+}
+
+/* ===== 目录 ===== */
+#tocOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 50;
+}
+
+#tocPanel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(400px, 100vw);
+  height: 100vh;
+  background: var(--toolbar-bg);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
+  z-index: 51;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.3s;
+}
+
+#tocScrollOuter {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#tocScrollArea {
+  position: absolute;
+  inset: 0;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+#tocScrollArea::-webkit-scrollbar {
+  display: none;
+}
+
+#tocHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--toolbar-border);
+  flex-shrink: 0;
+}
+
+#tocHeader h3 {
+  font-size: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+#tocClose {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#tocClose:hover {
+  background: var(--btn-hover);
+}
+
+#tocList {
+  list-style: none;
+  padding: 8px 0;
+}
+
+#tocList li {
+  padding: 8px 20px;
+  font-size: 14px;
+  color: var(--btn-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.2s;
+}
+
+#tocList li:hover {
+  background: var(--btn-hover);
+}
+
+#tocList li.active {
+  color: #4a90d9;
+  font-weight: bold;
+  background: rgba(74, 144, 217, 0.08);
+}
+
+/* ===== 自定义弹窗（alert / confirm 共用） ===== */
+#dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 60;
+}
+
+#dialogBox {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--toolbar-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  padding: 24px 32px;
+  z-index: 61;
+  min-width: 320px;
+  text-align: center;
+}
+
+#dialogMsg {
+  margin: 0 0 20px 0;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.dialogBtns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.dialogBtns button {
+  padding: 8px 28px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#dialogOk {
+  background: #4a90d9;
+  color: #fff;
+}
+
+#dialogOk:hover {
+  background: #3a7bc8;
+}
+
+#dialogCancel {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+}
+
+#dialogCancel:hover {
+  background: var(--btn-hover);
+}
+

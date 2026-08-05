@@ -1,0 +1,12 @@
+{
+  "name": "novel-reader",
+  "version": "1.0.0",
+  "description": "本地小说阅读器",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "playwright": "^1.62.0"
+  }
+}
