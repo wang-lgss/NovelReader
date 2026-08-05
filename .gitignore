@@ -19,6 +19,9 @@ src-tauri/target/
 .DS_Store
 Thumbs.db
 
+# 临时脚本
+test-flicker.mjs
+
 # 个人数据
 books/
 books.json
