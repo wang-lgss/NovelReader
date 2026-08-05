@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+
+      - name: Build Tauri
+        run: npx tauri build
+
+      - name: Create portable zip
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          $dist = "dist"
+          New-Item -ItemType Directory -Force -Path $dist
+          Copy-Item src-tauri/target/release/NovelReader.exe "$dist/NovelReader.exe"
+          Compress-Archive -Path "$dist/NovelReader.exe" -DestinationPath "$dist/NovelReader_${version}_x64-portable.zip"
+        shell: pwsh
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/NovelReader_*_x64-portable.zip
+            src-tauri/target/release/bundle/nsis/NovelReader_*_x64-setup.exe
+          generate_release_notes: true
