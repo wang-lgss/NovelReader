@@ -36,7 +36,7 @@ fn check_single_instance() -> bool {
 
 /// 激活已有窗口（找到并置前）
 fn activate_existing_window() {
-    let title = to_wide("小说阅读器");
+    let title = to_wide("NovelReader");
     unsafe {
         let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
         if hwnd != 0 {
@@ -139,7 +139,7 @@ pub fn run() {
             // 根据已保存主题创建窗口，避免 resize 时 WebView2 白闪
             let settings = shared::get_settings(&app_dir());
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
-                .title("小说阅读器")
+                .title("NovelReader")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(350.0, 400.0)
                 .resizable(true)
