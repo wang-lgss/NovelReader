@@ -3,9 +3,13 @@
 // 编译: cargo build --bin server
 #[path = "../shared.rs"]
 mod shared;
+#[path = "../fanqie.rs"]
+mod fanqie;
+#[path = "../heif.rs"]
+mod heif;
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tiny_http::{Header, Method, Request, Response};
 
 const PORT: u16 = 2048;
@@ -13,16 +17,18 @@ const PORT: u16 = 2048;
 fn main() {
     let server = tiny_http::Server::http(format!("0.0.0.0:{}", PORT)).unwrap();
     let frontend = find_frontend();
-    let base = shared::base_dir();
+    let base = shared::data_root();
 
     println!("小说阅读器 HTTP 服务已启动: http://localhost:{}", PORT);
     println!("前端目录: {}", frontend.display());
     println!("数据目录: {}", base.display());
 
-    // 自动打开浏览器
-    let _ = std::process::Command::new("cmd")
-        .args(["/c", "start", &format!("http://localhost:{}", PORT)])
-        .spawn();
+    // 自动打开浏览器（桌面端一键启动脚本会传 --no-open）
+    if !std::env::args().any(|a| a == "--no-open") {
+        let _ = std::process::Command::new("cmd")
+            .args(["/c", "start", &format!("http://localhost:{}", PORT)])
+            .spawn();
+    }
 
     for request in server.incoming_requests() {
         let url = request.url().to_string();
@@ -35,6 +41,17 @@ fn main() {
             (Method::Post, "/api/settings") => handle_save_settings(request, &base),
             (Method::Post, "/api/import-book") => handle_import_book(request, &base),
             (Method::Post, "/api/open-saved") => handle_open_saved(request, &base),
+            (Method::Post, "/api/store/search") => handle_store_search(request),
+            (Method::Post, "/api/store/info") => handle_store_info(request),
+            (Method::Post, "/api/store/chapters") => handle_store_chapters(request),
+            (Method::Post, "/api/store/contents") => handle_store_contents(request),
+            (Method::Post, "/api/store/download-contents") => handle_store_download_contents(request),
+    (Method::Post, "/api/store/rank") => handle_store_rank(request),
+    (Method::Post, "/api/cover") => handle_cover(request),
+    (Method::Post, "/api/cover-batch") => handle_cover_batch(request),
+            (Method::Post, "/api/store/add-book") => handle_add_store_book(request, &base),
+            (Method::Post, "/api/store/get-progress") => handle_get_store_progress(request, &base),
+            (Method::Post, "/api/store/save-progress") => handle_save_store_progress(request, &base),
             (Method::Post, "/api/update-book") => handle_update_book(request, &base),
             (Method::Post, "/api/delete-book") => handle_delete_book(request, &base),
             (Method::Post, "/api/rename-book") => handle_rename_book(request, &base),
@@ -118,10 +135,12 @@ fn serve_static(request: Request, frontend: &PathBuf) {
         p
     };
 
-    let file_path = if path_str.starts_with('/') {
-        frontend.join(&path_str[1..])
-    } else {
-        frontend.join(path_str)
+    let file_path = match safe_join(frontend, path_str) {
+        Some(p) => p,
+        None => {
+            let _ = request.respond(Response::from_string("Not Found").with_status_code(404));
+            return;
+        }
     };
 
     // SPA 回退
@@ -134,7 +153,7 @@ fn serve_static(request: Request, frontend: &PathBuf) {
     // 主题注入（index.html）
     if file_path.ends_with("index.html") {
         let mut content = fs::read_to_string(&file_path).unwrap_or_default();
-        if shared::get_settings(&shared::base_dir()).theme == "night" {
+        if shared::get_settings(&shared::data_root()).theme == "night" {
             content = content.replace("<html", "<html class=\" night\"");
         }
         let _ = request.respond(
@@ -158,6 +177,20 @@ fn serve_static(request: Request, frontend: &PathBuf) {
             let _ = request.respond(Response::from_string("Not Found").with_status_code(404));
         }
     }
+}
+
+/// 只允许访问前端目录内的普通相对路径，拒绝 `..`、盘符和反斜杠。
+fn safe_join(root: &Path, url_path: &str) -> Option<PathBuf> {
+    let mut out = root.to_path_buf();
+    for part in url_path.split('/') {
+        match part {
+            "" | "." => continue,
+            ".." => return None,
+            p if p.contains('\\') || p.contains(':') || p.contains('\0') => return None,
+            p => out.push(p),
+        }
+    }
+    Some(out)
 }
 
 // ===== API 处理 =====
@@ -187,15 +220,17 @@ fn handle_save_settings(mut request: Request, base: &PathBuf) {
 struct ImportBody {
     name: String,
     content: String,
+    #[serde(default)]
+    overwrite: bool,
 }
 
 fn handle_import_book(mut request: Request, base: &PathBuf) {
     let body = read_body(&mut request);
     match serde_json::from_str::<ImportBody>(&body) {
-        Ok(b) => match shared::import_book(base, b.name, &b.content) {
+        Ok(b) => match shared::import_book_with_overwrite(base, b.name, &b.content, b.overwrite) {
             Ok(result) => json_response(request, &result),
             Err(e) => {
-                let code = if e == "同名书籍已存在" { 409 } else { 400 };
+                let code = if e == "同名本地书已存在" { 409 } else { 400 };
                 json_error(request, &e, code);
             }
         },
@@ -227,20 +262,12 @@ struct UpdateBookBody {
     last_chapter: Option<usize>,
     #[serde(rename = "lastPosition")]
     last_position: Option<f64>,
-    #[serde(rename = "fontSize")]
-    font_size: Option<u32>,
-    #[serde(rename = "lineHeight")]
-    line_height: Option<f64>,
-    theme: Option<String>,
 }
 
 fn handle_update_book(mut request: Request, base: &PathBuf) {
     let body = read_body(&mut request);
     if let Ok(b) = serde_json::from_str::<UpdateBookBody>(&body) {
-        let _ = shared::update_book(
-            base, &b.id, b.last_chapter, b.last_position,
-            b.font_size, b.line_height, b.theme,
-        );
+        let _ = shared::update_book(base, &b.id, b.last_chapter, b.last_position);
         json_ok(request);
     } else {
         json_error(request, "无效请求", 400);
@@ -270,11 +297,248 @@ fn handle_rename_book(mut request: Request, base: &PathBuf) {
         match shared::rename_book(base, &b.id, &b.new_name) {
             Ok(()) => json_ok(request),
             Err(e) => {
-                let code = if e == "同名书籍已存在" { 409 } else { 400 };
+                let code = if e.contains("同名") { 409 } else { 400 };
                 json_error(request, &e, code);
             }
         }
     } else {
         json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct StoreSearchBody {
+    query: String,
+}
+
+fn handle_store_search(mut request: Request) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreSearchBody>(&body) {
+        match fanqie::search_app(&b.query) {
+            Ok(list) => json_response(request, &list),
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct StoreIdBody {
+    #[serde(rename = "bookId")]
+    book_id: String,
+}
+
+fn handle_store_info(mut request: Request) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreIdBody>(&body) {
+        match fanqie::book_info(&b.book_id) {
+            Ok(info) => json_response(request, &info),
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+fn handle_store_chapters(mut request: Request) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreIdBody>(&body) {
+        match fanqie::chapters(&b.book_id) {
+            Ok(list) => json_response(request, &list),
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct StoreContentsBody {
+    #[serde(rename = "bookId")]
+    book_id: String,
+    #[serde(rename = "itemIds")]
+    item_ids: Vec<String>,
+}
+
+fn handle_store_contents(mut request: Request) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreContentsBody>(&body) {
+        match fanqie::fetch_contents(&b.item_ids, &b.book_id) {
+            Ok(map) => json_response(request, &map),
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+fn handle_store_download_contents(mut request: Request) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreContentsBody>(&body) {
+        match fanqie::fetch_contents_download(&b.item_ids, &b.book_id) {
+            Ok(map) => json_response(request, &map),
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct CoverBody {
+    url: String,
+}
+
+fn handle_cover(mut request: Request) {
+    use base64::Engine as _;
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<CoverBody>(&body) {
+        match fanqie::cover_jpeg(&b.url) {
+            Ok(bytes) => {
+                let data = format!(
+                    "data:image/jpeg;base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(bytes)
+                );
+                json_response(request, &data);
+            }
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct CoverBatchBody {
+    urls: Vec<String>,
+}
+
+fn handle_cover_batch(mut request: Request) {
+    use base64::Engine as _;
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<CoverBatchBody>(&body) {
+        let covers: Vec<Option<String>> = fanqie::cover_batch(&b.urls)
+            .into_iter()
+            .map(|bytes| {
+                bytes.map(|bytes| {
+                    format!(
+                        "data:image/jpeg;base64,{}",
+                        base64::engine::general_purpose::STANDARD.encode(bytes)
+                    )
+                })
+            })
+            .collect();
+        json_response(request, &covers);
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct StoreRankBody {
+    algo: String,
+}
+
+fn handle_store_rank(mut request: Request) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreRankBody>(&body) {
+        match fanqie::rank_books(&b.algo) {
+            Ok(list) => json_response(request, &list),
+            Err(e) => json_error(request, &e, 502),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct AddStoreBookBody {
+    #[serde(rename = "storeId")]
+    store_id: String,
+    name: String,
+    #[serde(default)]
+    replace: bool,
+}
+
+fn handle_add_store_book(mut request: Request, base: &PathBuf) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<AddStoreBookBody>(&body) {
+        match shared::add_store_book_with_replace(base, &b.store_id, &b.name, b.replace) {
+            Ok(book) => json_response(request, &book),
+            Err(e) => json_error(request, &e, 409),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct StoreProgressIdBody {
+    #[serde(rename = "storeId")]
+    store_id: String,
+}
+
+fn handle_get_store_progress(mut request: Request, base: &PathBuf) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<StoreProgressIdBody>(&body) {
+        json_response(request, &shared::get_store_progress(base, &b.store_id))
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct SaveStoreProgressBody {
+    #[serde(rename = "storeId")]
+    store_id: String,
+    #[serde(rename = "lastChapter")]
+    last_chapter: usize,
+    #[serde(rename = "lastPosition")]
+    last_position: f64,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(rename = "lastItemId", default)]
+    last_item_id: Option<String>,
+}
+
+fn handle_save_store_progress(mut request: Request, base: &PathBuf) {
+    let body = read_body(&mut request);
+    if let Ok(b) = serde_json::from_str::<SaveStoreProgressBody>(&body) {
+        match shared::save_store_progress(
+            base,
+            &b.store_id,
+            b.last_chapter,
+            b.last_position,
+            b.name.as_deref(),
+            b.last_item_id.as_deref(),
+        ) {
+            Ok(()) => json_ok(request),
+            Err(e) => json_error(request, &e, 500),
+        }
+    } else {
+        json_error(request, "无效请求", 400);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_join_blocks_traversal() {
+        let root = Path::new("C:\\app\\frontend");
+        assert_eq!(safe_join(root, "/../books.json"), None);
+        assert_eq!(safe_join(root, "/a/../../b"), None);
+        assert_eq!(safe_join(root, "/..\\books.json"), None);
+        assert_eq!(safe_join(root, "/C:/Windows/win.ini"), None);
+    }
+
+    #[test]
+    fn safe_join_allows_normal_paths() {
+        let root = Path::new("C:\\app\\frontend");
+        assert_eq!(safe_join(root, "/index.html"), Some(root.join("index.html")));
+        assert_eq!(safe_join(root, "/sub/app.js"), Some(root.join("sub").join("app.js")));
+        assert_eq!(safe_join(root, "/"), Some(root.to_path_buf()));
     }
 }

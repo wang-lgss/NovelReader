@@ -12,11 +12,12 @@
   <!-- 工具栏 -->
   <div id="toolbar">
     <button id="btnBookshelf" class="collapsible">📚 书架</button>
-    <button id="btnBack" style="display:none">↩ 返回</button>
+    <button id="btnStore" class="collapsible">🏬 书城</button>
     <span id="bookTitle" style="visibility:hidden"></span>
     <button id="btnChapters">☰ 目录</button>
+    <button id="btnBack" style="display:none">↩ 返回</button>
     <span id="toolbarSpacer"></span>
-    <button id="btnSettings" title="设置">⚙ 设置</button>
+    <button id="btnSettings" title="更多">⋯ 更多</button>
     <button id="btnLineDown" class="collapsible" title="缩小行距">↕-</button>
     <div id="lineHeightDropdown" class="tbDropdown collapsible">
       <span class="tbValue">2.0</span>
@@ -44,6 +45,7 @@
     <!-- 窄屏设置下拉面板 -->
     <div id="settingsPanel" style="display:none">
       <div class="settingsItem" id="settingsBookshelf">📚 书架</div>
+      <div class="settingsItem" id="settingsStore">🏬 书城</div>
       <div class="settingsCtrl">
         <button id="settingsLineDown">↕-</button>
         <div class="settingsVal" id="settingsLineVal">2.0</div>
@@ -68,6 +70,8 @@
         </ul>
       </div>
       <div class="settingsItem" id="settingsTheme">🌙 夜间模式</div>
+      <div class="settingsItem" id="settingsAddShelf" style="display:none">加入书架</div>
+      <div class="settingsItem" id="settingsBackDetail" style="display:none">返回详细</div>
     </div>
   </div>
 
@@ -82,6 +86,48 @@
     </div>
     <div id="bookList"></div>
   </div>
+
+  <!-- 书城视图 -->
+  <div id="store" style="display:none">
+    <div id="storeHeader">
+      <input id="storeInput" type="search" placeholder="搜索书名、作者…" autocomplete="off" />
+      <button id="storeSearchBtn">搜索</button>
+    </div>
+    <div id="storeRankTabs" class="storeRankTabs">
+      <button data-algo="101" class="active">推荐榜</button>
+      <button data-algo="100">完本榜</button>
+      <button data-algo="200">巅峰榜</button>
+      <button data-algo="104">口碑榜</button>
+    </div>
+    <div id="storeRankList" class="storeRankList"></div>
+    <p id="storeHint"></p>
+    <div id="storeList"></div>
+
+    <!-- 书籍详情 -->
+    <div id="storeDetail" style="display:none">
+      <button id="storeDetailBack" class="storeBack">↩ 返回书城</button>
+      <div id="storeDetailHead">
+        <div id="storeDetailCover" class="storeCover"><span class="storeCoverEmpty">📖</span></div>
+        <div id="storeDetailInfo">
+          <h2 id="storeDetailTitle"></h2>
+          <div id="storeDetailAuthor"></div>
+          <div id="storeDetailTags"></div>
+          <div id="storeDetailMetaLine2"></div>
+          <div id="storeDetailAbstract"></div>
+          <div id="storeDetailActions">
+            <button id="storeReadBtn">在线阅读</button>
+            <button id="storeAddBtn">加入书架</button>
+            <button id="storeTocBtn">目录</button>
+            <button id="storeDownloadBtn">下载</button>
+          </div>
+        </div>
+      </div>
+      <p id="storeDetailStatus"></p>
+      <div id="storePreview" style="display:none">
+        <div id="storePreviewList"></div>
+      </div>
+    </div>
+    </div>
 
   <!-- 阅读区域 -->
   <div id="reader" style="display:none">
@@ -100,21 +146,23 @@
     </div>
   </div>
 
-    </div>
-    <div id="customScrollbar" class="customScrollbar"><div id="customScrollThumb" class="customScrollThumb"></div></div>
+  </div>
+  <div id="customScrollbar" class="customScrollbar"><div id="customScrollThumb" class="customScrollThumb"></div></div>
   </div>
   <!-- 目录侧边栏 -->
-  <div id="tocOverlay" style="display:none"></div>
-  <div id="tocPanel" style="display:none">
-    <div id="tocHeader">
-      <h3>目录</h3>
-      <button id="tocClose">↩ 返回</button>
-    </div>
-    <div id="tocScrollOuter">
-      <div id="tocScrollArea">
-        <ul id="tocList"></ul>
+  <div id="tocRoot">
+    <div id="tocOverlay"></div>
+    <div id="tocPanel">
+      <div id="tocHeader">
+        <h3>目录</h3>
+        <button id="tocClose">↩ 返回</button>
       </div>
-      <div id="tocScrollbar" class="customScrollbar"><div id="tocScrollThumb" class="customScrollThumb"></div></div>
+      <div id="tocScrollOuter">
+        <div id="tocScrollArea">
+          <ul id="tocList"></ul>
+        </div>
+        <div id="tocScrollbar" class="customScrollbar"><div id="tocScrollThumb" class="customScrollThumb"></div></div>
+      </div>
     </div>
   </div>
 

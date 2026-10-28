@@ -10,6 +10,12 @@
   --reader-bg: #fffdf7;
   --reader-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   --muted: #999;
+  --accent: #3a7bd5;
+  --accent-strong: #2f68b8;
+  --accent-soft: rgba(58, 123, 213, 0.12);
+  --local-badge-bg: #f0f0f0;
+  --local-badge-text: #666;
+  --local-badge-border: #dcdcdc;
 }
 
 .night {
@@ -23,6 +29,12 @@
   --reader-bg: #222;
   --reader-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
   --muted: #666;
+  --accent: #7ab8ff;
+  --accent-strong: #9ccbff;
+  --accent-soft: rgba(122, 184, 255, 0.16);
+  --local-badge-bg: #333;
+  --local-badge-text: #aaa;
+  --local-badge-border: #444;
 }
 
 /* ===== 滚动条 ===== */
@@ -126,10 +138,11 @@ body {
 
 /* ===== 工具栏 ===== */
 #toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: min(16px, 3vw);
-  padding: 13px max(20px, 3vw) 13px 20px;
+  padding: 13px 20px;
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--toolbar-border);
   flex-shrink: 0;
@@ -246,6 +259,48 @@ body {
   display: none;
 }
 
+#toolbar.reading #btnSettings {
+  display: inline-block;
+}
+
+#toolbar:not(.reading) #btnSettings {
+  display: none !important;
+}
+
+#btnLineDown,
+#btnLineUp,
+#lineHeightDropdown,
+#btnFontDown,
+#fontSizeDropdown,
+#btnFontUp {
+  display: none !important;
+}
+
+#toolbar.reading .collapsible {
+  display: none !important;
+}
+
+#toolbar.shelf #btnBookshelf {
+  display: none !important;
+}
+
+#toolbar.store #btnStore {
+  display: none !important;
+}
+
+/* 宽屏/中屏：阅读页直接显示书架、书城；窄屏仍收进“更多” */
+@media (min-width: 601px) {
+  #toolbar.reading #btnBookshelf,
+  #toolbar.reading #btnStore {
+    display: inline-block !important;
+  }
+
+  #settingsBookshelf,
+  #settingsStore {
+    display: none !important;
+  }
+}
+
 /* ===== 窄屏设置面板 ===== */
 #settingsPanel {
   position: absolute;
@@ -284,6 +339,12 @@ body {
 
 .settingsItem:hover {
   background: var(--btn-hover);
+}
+
+.settingsItem.disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* 设置面板内控件行 */
@@ -367,21 +428,6 @@ body {
 .settingsCtrl .settingsMenu li.active {
   color: #4a90d9;
   font-weight: bold;
-}
-
-/* ===== 窄屏响应式（仅阅读模式） ===== */
-@media (max-width: 860px) {
-  #toolbar.reading {
-    position: relative;
-  }
-
-  #toolbar.reading #btnSettings {
-    display: inline-block;
-  }
-
-  #toolbar.reading .collapsible {
-    display: none !important;
-  }
 }
 
 /* ===== 阅读区 ===== */
@@ -499,13 +545,6 @@ body {
   text-overflow: ellipsis;
 }
 
-/* ===== 加载状态 ===== */
-#loading {
-  text-align: center;
-  padding: 40px;
-  color: var(--muted);
-}
-
 /* ===== 书架 ===== */
 #bookshelf {
   max-width: 860px;
@@ -543,8 +582,8 @@ body {
 .bookItem {
   display: flex;
   align-items: center;
-  height: 56px;
-  padding: 0 16px;
+  min-height: 56px;
+  padding: 10px 16px;
   margin-bottom: 8px;
   background: var(--reader-bg);
   border-radius: 6px;
@@ -558,19 +597,51 @@ body {
 }
 
 .bookItem .bookName {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 360px;
+  padding-right: 16px;
   font-size: 15px;
+  line-height: 1.6;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.bookBadge {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.bookItem .bookBadge {
+  margin-right: 4px;
+}
+
+.bookItem.renaming .bookBadge {
+  display: none !important;
+}
+
+.localBadge {
+  margin-right: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--local-badge-border);
+  border-radius: 8px;
+  background: var(--local-badge-bg);
+  color: var(--local-badge-text);
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .bookItem .bookRename,
 .bookItem .bookRenameOk,
 .bookItem .bookRenameCancel {
+  flex-shrink: 0;
   padding: 4px 10px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
   font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
   margin-left: 4px;
 }
@@ -598,12 +669,14 @@ body {
 }
 
 .bookItem .bookDelete {
+  flex-shrink: 0;
   padding: 4px 10px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
   font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -619,11 +692,28 @@ body {
 }
 
 /* ===== 目录 ===== */
+#tocRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.16s ease, visibility 0s linear 0.16s;
+}
+
+#tocRoot.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.16s ease, visibility 0s;
+}
+
 #tocOverlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
-  z-index: 50;
+  z-index: 0;
 }
 
 #tocPanel {
@@ -634,7 +724,7 @@ body {
   height: 100vh;
   background: var(--toolbar-bg);
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
-  z-index: 51;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   transition: background 0.3s;
@@ -776,4 +866,497 @@ body {
 #dialogCancel:hover {
   background: var(--btn-hover);
 }
+
+/* ===== 书城 ===== */
+#store {
+  max-width: 860px;
+  margin: 20px auto;
+  padding: 40px min(60px, 6vw);
+}
+
+#storeHeader {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.storeRankTabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+
+.storeRankTabs button {
+  padding: 7px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.storeRankTabs button:hover {
+  background: var(--btn-hover);
+}
+
+.storeRankTabs button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.storeRankNo {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  min-width: 22px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.68);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.storeRankList .storeHint {
+  margin: 0;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.storeRankLoading {
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+#storeInput {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  background: var(--reader-bg);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+}
+
+#storeInput:focus {
+  border-color: #4a90d9;
+}
+
+#storeSearchBtn {
+  padding: 9px 22px;
+  border: none;
+  border-radius: 6px;
+  background: #4a90d9;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#storeSearchBtn:hover {
+  background: #3a7bc8;
+}
+
+#storeSearchBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#storeHint {
+  min-height: 20px;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.storeCard {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--reader-bg);
+  border-radius: 8px;
+  box-shadow: var(--reader-shadow);
+}
+
+.storeCover {
+  position: relative;
+  width: 76px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--btn-bg);
+}
+
+.storeCoverEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.storeCoverSpinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.storeCoverSpinner::after {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: storeCoverSpin 0.8s linear infinite;
+}
+
+@keyframes storeCoverSpin {
+  to { transform: rotate(360deg); }
+}
+
+.storeCoverImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.storeBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.storeTitle {
+  margin: 0 0 6px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.storeMeta {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.storeAbstract {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .storeCard {
+    gap: 12px;
+    padding: 12px;
+  }
+  .storeCover {
+    width: 60px;
+    height: 80px;
+  }
+}
+
+/* ===== 书城详情 ===== */
+.storeCard {
+  cursor: pointer;
+}
+
+.storeCard:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+
+.storeBack {
+  padding: 4px 0;
+  margin-bottom: 16px;
+  border: none;
+  background: none;
+  color: var(--btn-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.storeBack:hover {
+  color: var(--accent);
+}
+
+#storeDetailHead {
+  display: flex;
+  align-items: stretch;
+  gap: 28px;
+  height: 420px;
+  margin-bottom: 8px;
+}
+
+#storeDetailCover {
+  flex: 0 0 315px;
+  width: 315px;
+  height: 420px;
+}
+
+#storeDetailCover .storeCoverEmpty {
+  font-size: 48px;
+}
+
+#storeDetailCover .storeCoverSpinner::after {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+#storeDetailInfo {
+  flex: 1;
+  min-width: 0;
+  height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+#storeDetailTitle {
+  flex-shrink: 0;
+  margin: 0 0 6px;
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+#storeDetailAuthor {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+#storeDetailTags {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 20px;
+  margin-bottom: 10px;
+}
+
+.storeTag {
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: nowrap;
+}
+
+#storeDetailMetaLine2 {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.8;
+}
+
+#storeDetailAbstract {
+  flex: 1;
+  min-height: 0;
+  padding-right: 6px;
+  overflow-y: hidden;
+  overscroll-behavior: auto;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+#storeDetailAbstract.scrollable {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#storeDetailActions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 0;
+  margin-top: 12px;
+}
+
+#storeDetailActions button {
+  flex: 0 1 5.8em;
+  width: 5.8em;
+  min-width: 0;
+  padding: 7px 4px;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#storeReadBtn {
+  background: var(--accent);
+  color: #fff;
+}
+
+#storeReadBtn:hover {
+  background: var(--accent-strong);
+}
+
+#storeAddBtn,
+#storeTocBtn,
+#storeDownloadBtn {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+}
+
+#storeAddBtn:hover,
+#storeTocBtn:hover,
+#storeDownloadBtn:hover {
+  background: var(--btn-hover);
+}
+
+#storeDetailActions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#storeDetailStatus {
+  min-height: 18px;
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#storePreview {
+  margin-top: 8px;
+}
+
+.previewChapter {
+  margin-bottom: 28px;
+}
+
+.previewChapterTitle {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 20px;
+}
+
+.previewChapterText {
+  color: var(--text);
+  font-size: 18px;
+  line-height: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.previewHint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.onlineBadge {
+  flex-shrink: 0;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  #storeDetailHead {
+    flex-direction: column;
+    align-items: center;
+    height: auto;
+    gap: 16px;
+  }
+
+  #storeDetailCover {
+    flex: none;
+    width: 315px;
+    height: 420px;
+  }
+
+  #storeDetailInfo {
+    width: 100%;
+    height: auto;
+  }
+
+  #storeDetailAbstract {
+    max-height: 220px;
+  }
+
+  #storeDetailActions {
+    justify-content: flex-start;
+    gap: 20px;
+  }
+
+  #storeDetailActions button {
+    flex: 0 0 5.8em;
+    width: 5.8em;
+    padding: 7px 4px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 600px) {
+  #storeDetailCover {
+    width: 180px;
+    height: 240px;
+  }
+
+  #storeDetailActions {
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  #storeDetailActions button {
+    flex: 0 1 5.8em;
+    width: 5.8em;
+    min-width: 0;
+    padding: 7px 4px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .storeRankTabs {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .storeRankTabs button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 2px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}
+
 
