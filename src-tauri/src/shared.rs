@@ -523,6 +523,7 @@ pub fn save_store_progress(
 }
 
 /// 把番茄书城的书加入书架（只存元数据，正文在线阅读）。
+#[allow(dead_code)]
 pub fn add_store_book(base: &Path, store_id: &str, name: &str) -> Result<Book, String> {
     add_store_book_with_replace(base, store_id, name, false)
 }
@@ -634,6 +635,7 @@ pub fn save_settings(base: &Path, last_book_id: Option<String>, theme: Option<St
     write_atomic(&settings_file(base), &serde_json::to_string_pretty(&s).unwrap_or_default()).ok();
 }
 
+#[allow(dead_code)]
 pub fn import_book(base: &Path, name: String, content: &str) -> Result<ImportResult, String> {
     import_book_with_overwrite(base, name, content, false)
 }
