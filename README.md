@@ -74,20 +74,30 @@ npx tauri build
 ├── frontend/             # 前端（纯 HTML/CSS/JS）
 │   ├── index.html
 │   ├── styles.css
-│   ├── renderer.js       # 阅读器逻辑、书架、主题等
+│   ├── renderer.js       # 阅读器逻辑、书架、书城、主题等
 │   └── tauri-bridge.js   # Tauri / HTTP 双模式桥接
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs       # 程序入口
-│   │   ├── lib.rs        # Tauri 命令、窗口管理
-│   │   ├── shared.rs     # 共享业务逻辑（章节解析、数据持久化）
+│   │   ├── lib.rs        # Tauri 命令、窗口管理、DWM 标题栏
+│   │   ├── shared.rs     # 本地书架、章节解析、在线书数据持久化
+│   │   ├── fanqie.rs     # 番茄书城、目录、正文、封面接口
+│   │   ├── heif.rs       # HEIC 封面本地解码
 │   │   └── bin/
 │   │       └── server.rs # HTTP 服务（浏览器模式）
+│   ├── resources/heif/   # HEIF 运行时 DLL
+│   ├── tests/            # 集成测试
+│   ├── capabilities/     # Tauri 权限配置
 │   ├── Cargo.toml
 │   └── tauri.conf.json
-├── books/                # 书籍存储（已 gitignore）
-├── books.json            # 书架数据（已 gitignore）
-└── settings.json         # 用户设置（已 gitignore）
+├── .github/workflows/    # GitHub Actions 构建流程
+├── start.bat             # 启动 HTTP 服务和桌面窗口
+├── start.ps1             # 启动脚本实现
+├── books/                # 本地书正文（已 gitignore）
+├── books.json            # 本地书架数据（已 gitignore）
+├── online-books.json     # 在线书数据与进度（已 gitignore）
+├── settings.json         # 用户设置（已 gitignore）
+└── exports/              # 导出的 TXT（已 gitignore）
 ```
 
 ## 数据位置
@@ -95,8 +105,20 @@ npx tauri build
 桌面端与网页端共用同一份书架、阅读进度和设置：
 
 - **源码/开发布局**：从 exe 所在目录向上查找同时包含 `package.json` 与 `src-tauri` 的目录，也就是项目根目录；
-- **便携版**：数据放在 exe 同目录（`books/`、`books.json`、`settings.json`）；
+- **便携版**：数据放在 exe 同目录；
 - 可用环境变量 `NOVELREADER_DATA_DIR` 强制指定数据目录。
+
+数据文件职责：
+
+```text
+books/             本地书正文
+books.json         本地书书架记录和本地进度
+online-books.json  所有在线书、书架状态、阅读进度
+settings.json      主题、字号、行距、上次打开的书
+```
+
+在线书不区分是否加入书架，统一保存在 `online-books.json`；  
+`books.json` 只保存本地书。
 
 ## 待改进
 
