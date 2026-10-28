@@ -42,10 +42,22 @@ jobs:
           Compress-Archive -Path "$dist/NovelReader.exe", "$dist/heif" -DestinationPath "$dist/NovelReader_${version}_x64-portable.zip"
         shell: pwsh
 
+      - name: Extract release notes
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          $escaped = [regex]::Escape($version)
+          $content = Get-Content CHANGELOG.md -Raw
+          $match = [regex]::Match($content, "(?ms)^## \[$escaped\].*?(?=^## \[|\z)")
+          if (-not $match.Success) {
+            throw "CHANGELOG.md 中没有找到版本 $version 的条目"
+          }
+          $match.Value | Set-Content release-notes.md -Encoding utf8
+        shell: pwsh
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: |
             dist/NovelReader_*_x64-portable.zip
             src-tauri/target/release/bundle/nsis/NovelReader_*_x64-setup.exe
-          generate_release_notes: true
