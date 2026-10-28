@@ -1,7 +1,9 @@
 //! 番茄小说接口：Web 免签（搜索/详情/目录）+ App 签名（正文章节）。
 //! 签名算法移植自 TomatoNovel 的纯 Python 实现（SM3 + Simon + AES-CBC / Speck）。
 use std::collections::HashMap;
+use std::fs;
 use std::io::Read;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -10,15 +12,14 @@ use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes128;
 use base64::Engine as _;
-use rand::RngCore;
-use serde::Serialize;
+use rand::{Rng, RngCore};
+use serde::{Deserialize, Serialize};
 
 const APP_BASE: &str = "https://api5-normal-sinfonlineb.fqnovel.com";
 const WEB_BASE: &str = "https://fanqienovel.com";
 const REG_KEY: &str = "ac25c67ddd8f38c1b37a2348828e222e";
 const UA_WEB: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const UA_APP: &str = "com.dragon.read.oversea.gp/68132 (Linux; U; Android 10; zh_CN; OnePlus11; Build/V291IR;tt-ok/3.12.13.4-tiktok)";
-const COOKIE: &str = "store-region=cn-zj; store-region-src=did; install_id=1694818514278811";
 
 const SIGN_KEY: [u8; 32] = [
     0xac, 0x1a, 0xda, 0xae, 0x95, 0xa7, 0xaf, 0x94, 0xa5, 0x11, 0x4a, 0xb3, 0xb3, 0xa9, 0x7d, 0xd8,
@@ -29,9 +30,7 @@ const HIGH_RAND: [u8; 2] = [0x61, 0x6F];
 const XOR_PREFIX: [u8; 8] = [0xf2, 0xf7, 0xfc, 0xff, 0xf2, 0xf7, 0xfc, 0xff];
 const HEADER: [u8; 9] = [0xa6, 0x6e, 0xad, 0x9f, 0x77, 0x01, 0xd0, 0x0c, 0x18];
 
-const DEVICE: &[(&str, &str)] = &[
-    ("iid", "1694818514278811"),
-    ("device_id", "1694818514274715"),
+const DEVICE_STATIC: &[(&str, &str)] = &[
     ("ac", "wifi"),
     ("channel", "43536163a"),
     ("aid", "1967"),
@@ -41,14 +40,8 @@ const DEVICE: &[(&str, &str)] = &[
     ("device_platform", "android"),
     ("os", "android"),
     ("ssmix", "a"),
-    ("device_type", "OnePlus11"),
-    ("device_brand", "OnePlus"),
     ("language", "zh"),
-    ("os_api", "29"),
-    ("os_version", "10"),
     ("manifest_version_code", "68132"),
-    ("resolution", "3200*1440"),
-    ("dpi", "640"),
     ("update_version_code", "68132"),
     ("host_abi", "arm64-v8a"),
     ("dragon_device_type", "0"),
@@ -56,8 +49,255 @@ const DEVICE: &[(&str, &str)] = &[
     ("compliance_status", "0"),
     ("need_personal_recommend", "0"),
     ("player_so_load", "1"),
-    ("cdid", "9e014889-1900-4b8a-ba8c-faef250b73b9"),
 ];
+
+#[derive(Clone, Serialize, Deserialize)]
+struct DeviceModel {
+    device_model: String,
+    device_brand: String,
+    device_manufacturer: String,
+    os_version: String,
+    os_api: u32,
+    resolution: String,
+    dpi: u32,
+    rom_version: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct DeviceIdentity {
+    device_id: String,
+    install_id: String,
+    device_token: String,
+    cdid: String,
+    openudid: String,
+    region: String,
+    model: DeviceModel,
+    created_at: i64,
+}
+
+struct DeviceProfile {
+    device_model: &'static str,
+    device_brand: &'static str,
+    device_manufacturer: &'static str,
+    os_version: &'static str,
+    os_api: u32,
+    resolution: &'static str,
+    dpi: u32,
+    rom_version: &'static str,
+}
+
+const DEVICE_PROFILES: &[DeviceProfile] = &[
+    DeviceProfile {
+        device_model: "OnePlus11",
+        device_brand: "OnePlus",
+        device_manufacturer: "OnePlus",
+        os_version: "10",
+        os_api: 29,
+        resolution: "3200*1440",
+        dpi: 640,
+        rom_version: "V291IR+release-keys",
+    },
+    DeviceProfile {
+        device_model: "P30",
+        device_brand: "HUAWEI",
+        device_manufacturer: "HUAWEI",
+        os_version: "10",
+        os_api: 29,
+        resolution: "1080*2340",
+        dpi: 480,
+        rom_version: "ELS-AN00",
+    },
+    DeviceProfile {
+        device_model: "MI 9",
+        device_brand: "Xiaomi",
+        device_manufacturer: "Xiaomi",
+        os_version: "10",
+        os_api: 29,
+        resolution: "1080*2340",
+        dpi: 440,
+        rom_version: "MIUI11",
+    },
+    DeviceProfile {
+        device_model: "Pixel 4",
+        device_brand: "google",
+        device_manufacturer: "Google",
+        os_version: "11",
+        os_api: 30,
+        resolution: "1080*2280",
+        dpi: 440,
+        rom_version: "RQ3A.210805.001",
+    },
+    DeviceProfile {
+        device_model: "SM-G9860",
+        device_brand: "samsung",
+        device_manufacturer: "samsung",
+        os_version: "11",
+        os_api: 30,
+        resolution: "1440*3200",
+        dpi: 560,
+        rom_version: "RP1A.200720.012",
+    },
+];
+
+static DEVICE_IDENTITY: OnceLock<Result<DeviceIdentity, String>> = OnceLock::new();
+
+fn device_identity() -> Result<&'static DeviceIdentity, String> {
+    DEVICE_IDENTITY
+        .get_or_init(load_or_create_device_identity)
+        .as_ref()
+        .map_err(|e| e.clone())
+}
+
+fn device_identity_file() -> PathBuf {
+    crate::shared::data_root().join("fanqie-device.json")
+}
+
+fn load_or_create_device_identity() -> Result<DeviceIdentity, String> {
+    let file = device_identity_file();
+    if let Ok(text) = fs::read_to_string(&file) {
+        if let Ok(identity) = serde_json::from_str::<DeviceIdentity>(&text) {
+            if valid_device_identity(&identity) {
+                return Ok(identity);
+            }
+        }
+    }
+
+    let identity = register_device_identity()?;
+    if let Ok(json) = serde_json::to_string_pretty(&identity) {
+        if let Some(parent) = file.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(&file, json);
+    }
+    Ok(identity)
+}
+
+fn valid_device_identity(identity: &DeviceIdentity) -> bool {
+    !identity.device_id.is_empty()
+        && identity.device_id.parse::<u64>().is_ok()
+        && !identity.install_id.is_empty()
+        && identity.install_id.parse::<u64>().is_ok()
+        && identity.cdid.len() == 36
+        && identity.openudid.len() == 16
+}
+
+fn new_cdid() -> String {
+    let mut bytes = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3],
+        bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    )
+}
+
+fn new_openudid() -> String {
+    let mut bytes = [0u8; 8];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn register_device_identity() -> Result<DeviceIdentity, String> {
+    const REGISTER_URLS: &[&str] = &[
+        "https://log.snssdk.com/service/2/device_register/",
+        "https://log.isnssdk.com/service/2/device_register/",
+    ];
+
+    let profile = &DEVICE_PROFILES[rand::thread_rng().gen_range(0..DEVICE_PROFILES.len())];
+    let cdid = new_cdid();
+    let openudid = new_openudid();
+    let body = serde_json::json!({
+        "magic_tag": "ss_app_log",
+        "header": {
+            "display_name": "novelapp",
+            "update_version_code": 68132,
+            "manifest_version_code": 68132,
+            "aid": 1967,
+            "channel": "43536163a",
+            "package": "com.dragon.read",
+            "app_name": "novelapp",
+            "version_code": 68132,
+            "version_name": "6.8.1.32",
+            "device_platform": "android",
+            "language": "zh",
+            "region": "CN",
+            "cdid": cdid,
+            "openudid": openudid,
+            "device_model": profile.device_model,
+            "device_brand": profile.device_brand,
+            "device_manufacturer": profile.device_manufacturer,
+            "os_version": profile.os_version,
+            "os_api": profile.os_api,
+            "resolution": profile.resolution,
+            "dpi": profile.dpi,
+            "rom_version": profile.rom_version,
+        },
+        "_gen_time": now_secs(),
+    });
+    let body = serde_json::to_vec(&body).map_err(|e| format!("构建设备注册请求失败: {}", e))?;
+    let mut headers = HashMap::new();
+    headers.insert("Content-Type".into(), "application/json".into());
+    headers.insert("User-Agent".into(), "okhttp/3.12.13".into());
+
+    let mut last_err = String::from("未知错误");
+    for url in REGISTER_URLS {
+        match http("POST", url, &headers, Some(&body)) {
+            Ok(raw) => {
+                let v = match json_value(&raw) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        last_err = e;
+                        continue;
+                    }
+                };
+                let device_id = {
+                    let s = as_str(&v, "device_id_str");
+                    if s.is_empty() { as_str(&v, "device_id") } else { s }
+                };
+                let install_id = {
+                    let s = as_str(&v, "install_id_str");
+                    if s.is_empty() { as_str(&v, "install_id") } else { s }
+                };
+                if device_id.is_empty() || device_id == "0" || install_id.is_empty() || install_id == "0" {
+                    last_err = format!("设备注册未返回有效 ID: {}", String::from_utf8_lossy(&raw));
+                    continue;
+                }
+                return Ok(DeviceIdentity {
+                    device_id,
+                    install_id,
+                    device_token: as_str(&v, "device_token"),
+                    cdid,
+                    openudid,
+                    region: "cn-zj".into(),
+                    model: DeviceModel {
+                        device_model: profile.device_model.into(),
+                        device_brand: profile.device_brand.into(),
+                        device_manufacturer: profile.device_manufacturer.into(),
+                        os_version: profile.os_version.into(),
+                        os_api: profile.os_api,
+                        resolution: profile.resolution.into(),
+                        dpi: profile.dpi,
+                        rom_version: profile.rom_version.into(),
+                    },
+                    created_at: now_secs(),
+                });
+            }
+            Err(e) => last_err = e,
+        }
+    }
+    Err(format!("设备注册失败: {}", last_err))
+}
+
+fn cookie_header() -> Result<String, String> {
+    let identity = device_identity()?;
+    Ok(format!(
+        "store-region={}; store-region-src=did; install_id={}",
+        identity.region, identity.install_id
+    ))
+}
 
 // ===== 数据结构 =====
 
@@ -170,15 +410,30 @@ fn query_param(query: &str, key: &str) -> String {
     String::new()
 }
 
-fn device_query(extra: &[(&str, String)]) -> String {
+fn device_query(extra: &[(&str, String)]) -> Result<String, String> {
+    let identity = device_identity()?;
+    let model = &identity.model;
     let mut parts: Vec<String> = Vec::new();
-    for (k, v) in DEVICE {
+    for (k, v) in [
+        ("iid", identity.install_id.as_str()),
+        ("device_id", identity.device_id.as_str()),
+        ("cdid", identity.cdid.as_str()),
+        ("device_type", model.device_model.as_str()),
+        ("device_brand", model.device_brand.as_str()),
+        ("os_version", model.os_version.as_str()),
+        ("resolution", model.resolution.as_str()),
+    ] {
+        parts.push(format!("{}={}", url_encode(k), url_encode(v)));
+    }
+    parts.push(format!("os_api={}", model.os_api));
+    parts.push(format!("dpi={}", model.dpi));
+    for (k, v) in DEVICE_STATIC {
         parts.push(format!("{}={}", url_encode(k), url_encode(v)));
     }
     for (k, v) in extra {
         parts.push(format!("{}={}", url_encode(k), url_encode(v)));
     }
-    parts.join("&")
+    Ok(parts.join("&"))
 }
 
 // ===== protobuf / 密码学 =====
@@ -497,7 +752,7 @@ fn web_headers() -> HashMap<String, String> {
     h
 }
 
-fn app_headers(query: &str, ts: i64) -> HashMap<String, String> {
+fn app_headers(query: &str, ts: i64) -> Result<HashMap<String, String>, String> {
     let mut h = HashMap::new();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -508,7 +763,7 @@ fn app_headers(query: &str, ts: i64) -> HashMap<String, String> {
     rng.fill_bytes(&mut r2);
     let reading = format!("{}-{}", now, u16::from_be_bytes(r2));
     h.insert("User-Agent".into(), UA_APP.into());
-    h.insert("Cookie".into(), COOKIE.into());
+    h.insert("Cookie".into(), cookie_header()?);
     h.insert("Accept".into(), "application/json; charset=utf-8,application/x-protobuf".into());
     h.insert("Accept-Encoding".into(), "gzip".into());
     h.insert("x-xs-from-web".into(), "0".into());
@@ -523,7 +778,7 @@ fn app_headers(query: &str, ts: i64) -> HashMap<String, String> {
     for (k, v) in sign_headers(query, ts) {
         h.insert(k, v);
     }
-    h
+    Ok(h)
 }
 
 fn now_secs() -> i64 {
@@ -661,14 +916,10 @@ pub fn content_key(force: bool) -> Result<String, String> {
     }
 
     let ts = now_secs();
-    let query = device_query(&[("_rticket", now_millis().to_string())]);
+    let query = device_query(&[("_rticket", now_millis().to_string())])?;
     let url = format!("{}/reading/crypt/registerkey?{}", APP_BASE, query);
 
-    let device_id: u64 = DEVICE
-        .iter()
-        .find(|(k, _)| *k == "device_id")
-        .and_then(|(_, v)| v.parse().ok())
-        .unwrap_or(0);
+    let device_id: u64 = device_identity()?.device_id.parse().unwrap_or(0);
     let mut combined = Vec::with_capacity(16);
     combined.extend_from_slice(&device_id.to_le_bytes());
     combined.extend_from_slice(&[0u8; 8]);
@@ -683,7 +934,7 @@ pub fn content_key(force: bool) -> Result<String, String> {
     })
     .to_string();
 
-    let mut headers = app_headers(&query, ts);
+    let mut headers = app_headers(&query, ts)?;
     headers.insert("Content-Type".into(), "application/json".into());
     let raw = http("POST", &url, &headers, Some(body.as_bytes()))?;
     let v = json_value(&raw)?;
@@ -719,9 +970,10 @@ pub fn rank_books(algo: &str) -> Result<Vec<RankBook>, String> {
         ("tab_index", "0".to_string()),
         ("req_rank_algo", algo.to_string()),
         ("req_rank_category_id", "0".to_string()),
-    ]);
+    ])?;
     let url = format!("{}/reading/bookapi/bookmall/tab/v?{}", APP_BASE, query);
-    let raw = http("GET", &url, &app_headers(&query, now_secs()), None)?;
+    let headers = app_headers(&query, now_secs())?;
+    let raw = http("GET", &url, &headers, None)?;
     let v = json_value(&raw)?;
     if v.get("code").and_then(|c| c.as_i64()) != Some(0) {
         return Err(format!("榜单接口错误: code={} {}", as_str(&v, "code"), as_str(&v, "message")));
@@ -803,9 +1055,10 @@ pub fn search_app(query: &str) -> Result<Vec<crate::shared::StoreBook>, String> 
         ("query", q.to_string()),
         ("offset", "0".to_string()),
         ("count", "10".to_string()),
-    ]);
+    ])?;
     let url = format!("{}/reading/bookapi/search/page/v?{}", APP_BASE, query);
-    let raw = http("GET", &url, &app_headers(&query, now_secs()), None)?;
+    let headers = app_headers(&query, now_secs())?;
+    let raw = http("GET", &url, &headers, None)?;
     let v = json_value(&raw)?;
     if v.get("code").and_then(|c| c.as_i64()) != Some(0) {
         return Err(format!("搜索接口错误: code={} {}", as_str(&v, "code"), as_str(&v, "message")));
@@ -923,9 +1176,10 @@ fn fetch_contents_mode(item_ids: &[String], book_id: &str, req_type: &str) -> Re
         ("book_id", book_id.to_string()),
         ("req_type", req_type.to_string()),
         ("key_register_ts", now_ms),
-    ]);
+    ])?;
     let url = format!("{}/reading/reader/batch_full/v?{}", APP_BASE, query);
-    let raw = http("GET", &url, &app_headers(&query, ts), None)?;
+    let headers = app_headers(&query, ts)?;
+    let raw = http("GET", &url, &headers, None)?;
     let v = json_value(&raw)?;
     if v.get("code").and_then(|c| c.as_i64()) != Some(0) {
         return Err(format!("正文接口错误: code={} {}", as_str(&v, "code"), as_str(&v, "message")));
