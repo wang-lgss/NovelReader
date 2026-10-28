@@ -38,7 +38,8 @@ jobs:
           $dist = "dist"
           New-Item -ItemType Directory -Force -Path $dist
           Copy-Item src-tauri/target/release/NovelReader.exe "$dist/NovelReader.exe"
-          Compress-Archive -Path "$dist/NovelReader.exe" -DestinationPath "$dist/NovelReader_${version}_x64-portable.zip"
+          Copy-Item src-tauri/resources/heif "$dist/heif" -Recurse
+          Compress-Archive -Path "$dist/NovelReader.exe", "$dist/heif" -DestinationPath "$dist/NovelReader_${version}_x64-portable.zip"
         shell: pwsh
 
       - name: Publish Release
